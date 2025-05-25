@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function BotaoInicio() {
   const [visivel, setVisivel] = useState(false);
@@ -20,8 +20,9 @@ export function BotaoInicio() {
   return (
     <button
       onClick={irParaTopo}
-      className="fixed bottom-20 right-6 bg-black/70 text-white rounded-full p-4 shadow-lg hover:bg-black/90 transition-colors z-50"
+      className="fixed bottom-20 right-6 bg-black/70 text-white rounded-full w-14 h-14 shadow-lg hover:bg-black/90 transition-colors flex items-center justify-center text-2xl z-50 p-0"
       aria-label="Ir para o topo"
+      title="Ir para o topo"
     >
       ↑
     </button>
