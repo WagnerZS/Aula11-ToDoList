@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FundoLixeira } from "./FundoLixeira";
 
-// Importe o arquivo JSON com as tarefas iniciais
-import listaCompra from "../dataBase/listaCompra.json";
+const API_URL = 'https://mercado-6kjn.onrender.com/tasks';
 
 export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
   const [loading, setLoading] = useState(true);
@@ -13,89 +12,128 @@ export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
 
   // Carrega as tarefas do arquivo local ao iniciar
   useEffect(() => {
-    setTasks(listaCompra);
-    setLoading(false);
+    fetch(API_URL)
+      .then(res => res.json())
+      .then(data => {
+        setTasks(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
     // eslint-disable-next-line
   }, [setTasks]);
 
   // Swipe-to-delete handlers
   const touchStartX = useRef({});
 
-  const handleTouchStart = (e, id) => {
-    setSwipingId(id);
-    touchStartX.current[id] = e.touches ? e.touches[0].clientX : e.clientX;
-    setSwipeX((prev) => ({ ...prev, [id]: 0 }));
+  const handleTouchStart = (e, _id) => {
+    setSwipingId(_id);
+    touchStartX.current[_id] = e.touches ? e.touches[0].clientX : e.clientX;
+    setSwipeX((prev) => ({ ...prev, [_id]: 0 }));
   };
 
-  const handleTouchMove = (e, id) => {
-    if (swipingId !== id) return;
+  const handleTouchMove = (e, _id) => {
+    if (swipingId !== _id) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const deltaX = Math.min(0, clientX - touchStartX.current[id]);
+    const deltaX = Math.min(0, clientX - touchStartX.current[_id]);
     const width = listRef.current?.offsetWidth || 1;
     const maxSwipe = -width * 0.2; // 20%
     setSwipeX((prev) => ({
       ...prev,
-      [id]: Math.max(deltaX, maxSwipe),
+      [_id]: Math.max(deltaX, maxSwipe),
     }));
   };
 
-  const handleTouchEnd = (id, e) => {
+  const handleTouchEnd = (_id, e) => {
     const width = listRef.current?.offsetWidth || 1;
     const maxSwipe = -width * 0.2;
     let clientX;
     if (e && e.changedTouches && e.changedTouches[0]) {
       clientX = e.changedTouches[0].clientX;
     } else {
-      clientX = touchStartX.current[id]; // fallback
+      clientX = touchStartX.current[_id]; // fallback
     }
-    const deltaX = Math.min(0, clientX - touchStartX.current[id]);
+    const deltaX = Math.min(0, clientX - touchStartX.current[_id]);
     if (deltaX <= maxSwipe + 5) {
-      setTasks((prev) => prev.filter((t) => t.id !== id));
+      handleDeleteTask(_id);
     }
     setSwipingId(null);
-    setSwipeX((prev) => ({ ...prev, [id]: 0 }));
+    setSwipeX((prev) => ({ ...prev, [_id]: 0 }));
   };
 
-  const handleMouseDown = (e, id) => {
+  const handleMouseDown = (e, _id) => {
     if (e.button !== 0) return; // apenas botão esquerdo
-    setSwipingId(id);
-    touchStartX.current[id] = e.clientX;
-    setSwipeX((prev) => ({ ...prev, [id]: 0 }));
+    setSwipingId(_id);
+    touchStartX.current[_id] = e.clientX;
+    setSwipeX((prev) => ({ ...prev, [_id]: 0 }));
   };
 
-  const handleMouseMove = (e, id) => {
-    if (swipingId !== id) return;
+  const handleMouseMove = (e, _id) => {
+    if (swipingId !== _id) return;
     const clientX = e.clientX;
-    const deltaX = Math.min(0, clientX - touchStartX.current[id]);
+    const deltaX = Math.min(0, clientX - touchStartX.current[_id]);
     const width = listRef.current?.offsetWidth || 1;
     const maxSwipe = -width * 0.2;
     setSwipeX((prev) => ({
       ...prev,
-      [id]: Math.max(deltaX, maxSwipe),
+      [_id]: Math.max(deltaX, maxSwipe),
     }));
   };
 
-  const handleMouseUp = (id, e) => {
+  const handleMouseUp = (_id, e) => {
     const width = listRef.current?.offsetWidth || 1;
     const maxSwipe = -width * 0.2;
-    const clientX = e ? e.clientX : touchStartX.current[id];
-    const deltaX = Math.min(0, clientX - touchStartX.current[id]);
+    const clientX = e ? e.clientX : touchStartX.current[_id];
+    const deltaX = Math.min(0, clientX - touchStartX.current[_id]);
     if (deltaX <= maxSwipe + 5) {
-      setTasks((prev) => prev.filter((t) => t.id !== id));
+      handleDeleteTask(_id);
     }
     setSwipingId(null);
-    setSwipeX((prev) => ({ ...prev, [id]: 0 }));
+    setSwipeX((prev) => ({ ...prev, [_id]: 0 }));
   };
 
-  const handleToggle = (id) => {
+  const handleToggle = async (_id) => {
+    // Atualiza visualmente no frontend imediatamente
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task._id === _id ? { ...task, completed: !task.completed } : task
       )
     );
+    // Envia para o backend (não espera resposta)
+    fetch(API_URL + '/' + _id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed: !tasks.find(t => t._id === _id).completed }),
+    });
   };
 
-  // Adicione listeners globais para mouse
+  const handleDeleteTask = async (_id) => {
+    // Remove visualmente no frontend imediatamente
+    setTasks((prev) => prev.filter((t) => t._id !== _id));
+    // Envia para o backend (não espera resposta)
+    fetch(API_URL + '/' + _id, {
+      method: 'DELETE',
+    });
+  };
+
+  const handleAddTask = async (task) => {
+    // Remove _id se existir (por segurança)
+    const { _id, ...taskWithoutId } = task;
+    // Cria uma tarefa temporária para feedback instantâneo
+    const tempTask = { ...taskWithoutId, isTemp: true, _id: Math.random().toString(36).slice(2) };
+    setTasks((prev) => [tempTask, ...prev]);
+    setTempTask(null);
+
+    // Envia para o backend
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskWithoutId),
+    });
+    const newTask = await response.json();
+    // Substitui a tarefa temporária pela definitiva do backend
+    setTasks((prev) => [newTask, ...prev.filter(t => t._id !== tempTask._id)]);
+  };
+
   useEffect(() => {
     if (swipingId === null) return;
 
@@ -140,18 +178,27 @@ export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
     }
   }, [tempTask]);
 
-  // Após qualquer alteração nas tarefas:
+  // Atualização automática das tarefas a cada 5 segundos
   useEffect(() => {
-    if (!loading) {
-      // Filtra tarefas definitivas (sem isTemp)
-      const definitiveTasks = tasks.filter(t => !t.isTemp);
-      fetch('https://glorious-adventure-7vjq4p6vwgvc4r-3001.app.github.dev/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(definitiveTasks),
-      });
-    }
-  }, [tasks, loading]);
+    const interval = setInterval(() => {
+      fetch(API_URL)
+        .then(res => res.json())
+        .then(serverTasks => {
+          setTasks(prev => {
+            // Mantém as tarefas temporárias (isTemp)
+            const tempTasks = prev.filter(t => t.isTemp);
+            // Remove duplicatas (caso id já exista no server)
+            const filteredServerTasks = serverTasks.filter(
+              st => !tempTasks.some(tt => tt.id === st.id)
+            );
+            // Junta: temporárias no topo, depois as do servidor
+            return [...tempTasks, ...filteredServerTasks];
+          });
+        });
+    }, 5000); // 5 segundos
+
+    return () => clearInterval(interval);
+  }, [setTasks]);
 
   if (loading) {
     return (
@@ -174,20 +221,20 @@ export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
             ref={listRef}
           >
             {tasks.map((task, idx) => {
-              const isSwiping = swipingId === task.id && (swipeX[task.id] || 0) !== 0;
-              const translateX = isSwiping ? swipeX[task.id] || 0 : 0;
+              const isSwiping = swipingId === task._id && (swipeX[task._id] || 0) !== 0;
+              const translateX = isSwiping ? swipeX[task._id] || 0 : 0;
 
               return (
                 <li
-                  key={idx}
+                  key={task._id || idx}
                   className={`relative select-none transition-colors overflow-hidden ${
                     task.completed ? "bg-gray-100" : ""
                   }`}
                   style={{
                     transition: "none",
                   }}
-                  onTouchStart={(e) => handleTouchStart(e, task.id)}
-                  onMouseDown={(e) => handleMouseDown(e, task.id)}
+                  onTouchStart={(e) => handleTouchStart(e, task._id)}
+                  onMouseDown={(e) => handleMouseDown(e, task._id)}
                 >
                   {/* Fundo da lixeira */}
                   {isSwiping && (
@@ -205,7 +252,7 @@ export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
                       <input
                         type="checkbox"
                         checked={task.completed}
-                        onChange={() => handleToggle(task.id)}
+                        onChange={() => handleToggle(task._id)}
                         className="mr-2 sm:mr-3 accent-red-700"
                       />
                       {task.isTemp ? (
@@ -217,28 +264,34 @@ export function TaskList({ tasks, setTasks, tempTask, setTempTask }) {
                           onChange={e => {
                             setTempTask({ ...task, title: e.target.value });
                             setTasks(prev =>
-                              prev.map(t => t.id === task.id ? { ...t, title: e.target.value } : t)
+                              prev.map(t => t._id === task._id ? { ...t, title: e.target.value } : t)
                             );
                           }}
-                          onKeyDown={e => {
+                          onKeyDown={async e => {
                             if (e.key === "Enter" && task.title.trim()) {
-                              setTasks(prev =>
-                                prev.map(t =>
-                                  t.id === task.id
-                                    ? { ...t, isTemp: undefined }
-                                    : t
-                                )
-                              );
+                              // Remove a tarefa temporária e limpa o input imediatamente (UX instantânea)
+                              const tempId = task._id;
+                              setTasks(prev => prev.filter(t => t._id !== tempId));
                               setTempTask(null);
+
+                              // Envia para o backend e adiciona a tarefa definitiva quando chegar a resposta
+                              const { _id, ...taskWithoutId } = task;
+                              const response = await fetch(API_URL, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(taskWithoutId),
+                              });
+                              const newTask = await response.json();
+                              setTasks(prev => [newTask, ...prev]);
                             }
                             if (e.key === "Escape") {
-                              setTasks(prev => prev.filter(t => t.id !== task.id));
+                              setTasks(prev => prev.filter(t => t._id !== task._id));
                               setTempTask(null);
                             }
                           }}
                           onBlur={() => {
                             if (!task.title.trim()) {
-                              setTasks(prev => prev.filter(t => t.id !== task.id));
+                              setTasks(prev => prev.filter(t => t._id !== task._id));
                               setTempTask(null);
                             }
                           }}
