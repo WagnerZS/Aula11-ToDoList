@@ -4,7 +4,6 @@ import cors from 'cors';
 
 const app = express();
 const PORT = 3001;
-const senha = en
 
 const MONGO_URI = process.env.MONGO_URI;
 
